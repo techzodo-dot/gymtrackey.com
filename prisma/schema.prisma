@@ -1,0 +1,939 @@
+// GymTrackey — multi-tenant schema.
+// RULE: every tenant-owned model carries `tenantId` (FK -> Tenant) and is indexed on it.
+// Tenant is always derived from the authenticated session server-side, never from client input.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── Enums ─────────────
+enum Role {
+  SUPER_ADMIN
+  OWNER
+  MANAGER
+  TRAINER
+  RECEPTIONIST
+  MEMBER
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  SUSPENDED
+}
+
+enum MemberStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  INACTIVE
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  FROZEN
+  PENDING
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PaymentMethodType {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  CHEQUE
+  ONLINE
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  PENDING
+  OVERDUE
+  REFUNDED
+  CANCELLED
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+enum AttendanceMethod {
+  MANUAL
+  MEMBER_ID
+  QR
+  BIOMETRIC
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum ReminderChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum ReminderStatus {
+  SCHEDULED
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum NotificationType {
+  MEMBERSHIP_EXPIRING
+  PAYMENT_DUE
+  PAYMENT_RECEIVED
+  MEMBERSHIP_RENEWED
+  ATTENDANCE
+  ANNOUNCEMENT
+  SYSTEM
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  DEMO_SCHEDULED
+  TRIAL
+  CONVERTED
+  LOST
+}
+
+enum PhotoAngle {
+  FRONT
+  BACK
+  LEFT
+  RIGHT
+}
+
+enum WeekDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum MealTime {
+  BREAKFAST
+  MID_MORNING
+  LUNCH
+  EVENING
+  DINNER
+  BEFORE_BED
+}
+
+enum ExpenseCategory {
+  RENT
+  ELECTRICITY
+  WATER
+  EQUIPMENT
+  MAINTENANCE
+  SALARY
+  MARKETING
+  CLEANING
+  INTERNET
+  OTHER
+}
+
+enum AnnouncementAudience {
+  ALL_MEMBERS
+  MEMBERSHIP_PLAN
+  TRAINER_MEMBERS
+}
+
+// ───────────── Platform level ─────────────
+model SubscriptionPlan {
+  id            String   @id @default(cuid())
+  code          String   @unique // starter | growth | professional | enterprise
+  name          String
+  priceMonthly  Int // minor units (paise); 0 for custom
+  currency      String   @default("INR")
+  memberLimit   Int? // null = unlimited
+  branchLimit   Int? // null = unlimited
+  staffLimit    Int? // null = unlimited
+  features      Json     @default("{}") // feature flags per plan
+  isCustom      Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  subscriptions Subscription[]
+}
+
+model Coupon {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  discountType  DiscountType
+  discountValue Int
+  maxDiscount   Int?
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  usageLimit    Int?
+  usedCount     Int          @default(0)
+  planCodes     String[]
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  redemptions   CouponRedemption[]
+}
+
+model Lead {
+  id           String     @id @default(cuid())
+  name         String
+  gymName      String
+  phone        String
+  email        String
+  memberCount  String?
+  city         String?
+  message      String?
+  status       LeadStatus @default(NEW)
+  createdAt    DateTime   @default(now())
+
+  @@index([status, createdAt])
+}
+
+model ContactInquiry {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model BlogPost {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  excerpt     String?
+  body        String
+  category    String?
+  tags        String[]
+  seoTitle    String?
+  seoDesc     String?
+  featuredImg String?
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model WebhookEvent {
+  id          String   @id // provider event id => idempotency key
+  provider    String
+  type        String
+  payload     Json
+  processedAt DateTime @default(now())
+}
+
+// ───────────── Tenancy & identity ─────────────
+model Tenant {
+  id             String       @id @default(cuid())
+  slug           String       @unique
+  name           String
+  status         TenantStatus @default(TRIAL)
+  trialEndsAt    DateTime?
+  planCode       String       @default("starter")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  gym            Gym?
+  users          User[]
+  branches       Branch[]
+  members        Member[]
+  membershipPlans MembershipPlan[]
+  memberMemberships MemberMembership[]
+  payments       Payment[]
+  invoices       Invoice[]
+  refunds        Refund[]
+  attendance     Attendance[]
+  trainers       Trainer[]
+  staff          Staff[]
+  workoutPlans   WorkoutPlan[]
+  workoutExercises WorkoutExercise[]
+  dietPlans      DietPlan[]
+  dietMeals      DietMeal[]
+  measurements   Measurement[]
+  progressPhotos ProgressPhoto[]
+  expenses       Expense[]
+  notifications  Notification[]
+  announcements  Announcement[]
+  reminders      Reminder[]
+  documents      Document[]
+  settings       Setting[]
+  paymentMethods PaymentMethod[]
+  supportTickets SupportTicket[]
+  auditLogs      AuditLog[]
+  subscriptions  Subscription[]
+  couponRedemptions CouponRedemption[]
+  referrals      Referral[]
+  roles          RoleDefinition[]
+}
+
+model Gym {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  name      String
+  logoUrl   String?
+  phone     String?
+  email     String?
+  address   String?
+  city      String?
+  state     String?
+  country   String   @default("IN")
+  gstin     String?
+  website   String?
+  social    Json     @default("{}")
+  currency  String   @default("INR")
+  timezone  String   @default("Asia/Kolkata")
+  primaryColor   String?
+  secondaryColor String?
+  invoicePrefix  String @default("GT")
+  onboardingStep Int    @default(0)
+  onboardingDone Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  address   String?
+  city      String?
+  phone     String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members   Member[]
+  attendance Attendance[]
+  payments  Payment[]
+  trainers  Trainer[]
+  staff     Staff[]
+  users     User[]
+
+  @@index([tenantId])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  tenantId      String? // null only for SUPER_ADMIN
+  branchId      String?
+  email         String    @unique
+  name          String
+  phone         String?
+  passwordHash  String
+  role          Role
+  permissions   Json      @default("[]") // custom permission keys for staff roles
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+  theme         String    @default("system")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch        Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  member        Member?
+  trainer       Trainer?
+  staff         Staff?
+  resetTokens   PasswordResetToken[]
+  auditLogs     AuditLog[]
+  supportMessages SupportMessage[]
+
+  @@index([tenantId, role])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique // sha256 of the emailed token
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RoleDefinition {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  permissions String[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+}
+
+model Staff {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String   @unique
+  branchId    String?
+  role        Role
+  permissions String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+}
+
+model Trainer {
+  id             String    @id @default(cuid())
+  tenantId       String
+  branchId       String?
+  userId         String?   @unique
+  name           String
+  photoUrl       String?
+  phone          String?
+  email          String?
+  specialization String?
+  joinedAt       DateTime?
+  salary         Int? // minor units
+  commissionPct  Decimal?  @db.Decimal(5, 2)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch         Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  members        Member[]
+  workoutPlans   WorkoutPlan[]
+  dietPlans      DietPlan[]
+  measurements   Measurement[]
+
+  @@index([tenantId])
+}
+
+// ───────────── Members & memberships ─────────────
+model MembershipPlan {
+  id             String   @id @default(cuid())
+  tenantId       String
+  name           String
+  durationDays   Int
+  price          Int // minor units
+  description    String?
+  accessType     String   @default("FULL")
+  freezeDays     Int      @default(0)
+  trainerIncluded Boolean @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships    MemberMembership[]
+
+  @@index([tenantId])
+}
+
+model Member {
+  id           String       @id @default(cuid())
+  tenantId     String
+  branchId     String?
+  userId       String?      @unique
+  memberCode   String // human readable, unique per tenant
+  firstName    String
+  lastName     String?
+  photoUrl     String?
+  gender       Gender?
+  dob          DateTime?
+  phone        String
+  email        String?
+  address      String?
+  emergencyContact String?
+  bloodGroup   String?
+  joinDate     DateTime     @default(now())
+  trainerId    String?
+  status       MemberStatus @default(ACTIVE)
+  heightCm     Decimal?     @db.Decimal(5, 1)
+  weightKg     Decimal?     @db.Decimal(5, 1)
+  medicalNotes String?
+  fitnessGoals String?
+  notes        String?
+  qrToken      String       @unique @default(cuid())
+  referralCode String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  trainer      Trainer?     @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  memberships  MemberMembership[]
+  payments     Payment[]
+  attendance   Attendance[]
+  measurements Measurement[]
+  photos       ProgressPhoto[]
+  workoutPlans WorkoutPlan[]
+  dietPlans    DietPlan[]
+  documents    Document[]
+  notifications Notification[]
+  reminders    Reminder[]
+  invoices     Invoice[]
+  referralsMade Referral[] @relation("Referrer")
+
+  @@unique([tenantId, memberCode])
+  @@index([tenantId, status])
+  @@index([tenantId, phone])
+  @@index([tenantId, email])
+}
+
+model MemberMembership {
+  id         String           @id @default(cuid())
+  tenantId   String
+  memberId   String
+  planId     String
+  startDate  DateTime
+  endDate    DateTime
+  status     MembershipStatus @default(ACTIVE)
+  frozenFrom DateTime?
+  frozenTo   DateTime?
+  freezeReason String?
+  price      Int
+  createdAt  DateTime         @default(now())
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member     Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  plan       MembershipPlan   @relation(fields: [planId], references: [id])
+  payments   Payment[]
+
+  @@index([tenantId, status, endDate])
+  @@index([memberId])
+}
+
+// ───────────── Billing inside a gym ─────────────
+model Payment {
+  id           String            @id @default(cuid())
+  tenantId     String
+  branchId     String?
+  memberId     String
+  membershipId String?
+  amount       Int // gross, minor units
+  discount     Int               @default(0)
+  tax          Int               @default(0)
+  finalAmount  Int
+  method       PaymentMethodType
+  status       PaymentStatus     @default(PAID)
+  paidAt       DateTime?
+  dueDate      DateTime?
+  collectedById String?
+  notes        String?
+  txnRef       String?
+  createdAt    DateTime          @default(now())
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  member       Member            @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  membership   MemberMembership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+  invoice      Invoice?
+  refunds      Refund[]
+
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, paidAt])
+  @@index([memberId])
+}
+
+model Invoice {
+  id         String   @id @default(cuid())
+  tenantId   String
+  memberId   String
+  paymentId  String?  @unique
+  number     String // e.g. GT-2026-000001
+  subtotal   Int
+  discount   Int      @default(0)
+  cgst       Int      @default(0)
+  sgst       Int      @default(0)
+  igst       Int      @default(0)
+  total      Int
+  issuedAt   DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  payment    Payment? @relation(fields: [paymentId], references: [id])
+
+  @@unique([tenantId, number])
+  @@index([tenantId, issuedAt])
+}
+
+model Refund {
+  id           String       @id @default(cuid())
+  tenantId     String
+  paymentId    String
+  amount       Int
+  reason       String
+  status       RefundStatus @default(REQUESTED)
+  requestedById String?
+  approvedById String?
+  createdAt    DateTime     @default(now())
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+}
+
+model PaymentMethod {
+  id        String            @id @default(cuid())
+  tenantId  String
+  type      PaymentMethodType
+  label     String
+  details   Json              @default("{}")
+  isEnabled Boolean           @default(true)
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  tenantId    String
+  category    ExpenseCategory
+  amount      Int
+  date        DateTime
+  method      PaymentMethodType @default(CASH)
+  vendor      String?
+  description String?
+  receiptUrl  String?
+  addedById   String?
+  createdAt   DateTime        @default(now())
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+}
+
+// ───────────── Attendance ─────────────
+model Attendance {
+  id        String           @id @default(cuid())
+  tenantId  String
+  branchId  String?
+  memberId  String
+  checkInAt DateTime         @default(now())
+  checkOutAt DateTime?
+  method    AttendanceMethod @default(MANUAL)
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch    Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  member    Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, checkInAt])
+  @@index([memberId, checkInAt])
+}
+
+// ───────────── Training ─────────────
+model WorkoutPlan {
+  id        String    @id @default(cuid())
+  tenantId  String
+  memberId  String
+  trainerId String?
+  name      String
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainer   Trainer?  @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  exercises WorkoutExercise[]
+
+  @@index([tenantId, memberId])
+}
+
+model WorkoutExercise {
+  id        String   @id @default(cuid())
+  tenantId  String
+  planId    String
+  day       WeekDay
+  exercise  String
+  sets      Int?
+  reps      Int?
+  weightKg  Decimal? @db.Decimal(6, 2)
+  restSec   Int?
+  notes     String?
+  completed Boolean  @default(false)
+  sortOrder Int      @default(0)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan      WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, planId])
+}
+
+model DietPlan {
+  id        String    @id @default(cuid())
+  tenantId  String
+  memberId  String
+  trainerId String?
+  name      String
+  notes     String?
+  createdAt DateTime  @default(now())
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainer   Trainer?  @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  meals     DietMeal[]
+
+  @@index([tenantId, memberId])
+}
+
+model DietMeal {
+  id        String   @id @default(cuid())
+  tenantId  String
+  planId    String
+  mealTime  MealTime
+  food      String
+  quantity  String?
+  calories  Int?
+  proteinG  Decimal? @db.Decimal(6, 1)
+  carbsG    Decimal? @db.Decimal(6, 1)
+  fatsG     Decimal? @db.Decimal(6, 1)
+  notes     String?
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan      DietPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, planId])
+}
+
+model Measurement {
+  id         String   @id @default(cuid())
+  tenantId   String
+  memberId   String
+  trainerId  String?
+  measuredAt DateTime @default(now())
+  weightKg   Decimal? @db.Decimal(5, 1)
+  heightCm   Decimal? @db.Decimal(5, 1)
+  bmi        Decimal? @db.Decimal(4, 1)
+  chestCm    Decimal? @db.Decimal(5, 1)
+  waistCm    Decimal? @db.Decimal(5, 1)
+  hipCm      Decimal? @db.Decimal(5, 1)
+  bicepsCm   Decimal? @db.Decimal(5, 1)
+  thighCm    Decimal? @db.Decimal(5, 1)
+  bodyFatPct Decimal? @db.Decimal(4, 1)
+  muscleMassKg Decimal? @db.Decimal(5, 1)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainer    Trainer? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, memberId, measuredAt])
+}
+
+model ProgressPhoto {
+  id         String     @id @default(cuid())
+  tenantId   String
+  memberId   String
+  angle      PhotoAngle
+  storageKey String // private object key; served via signed URLs only
+  takenAt    DateTime   @default(now())
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, memberId, takenAt])
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  tenantId   String
+  memberId   String?
+  name       String
+  storageKey String
+  mimeType   String
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member     Member?  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// ───────────── Communication ─────────────
+model Notification {
+  id        String           @id @default(cuid())
+  tenantId  String
+  memberId  String?
+  userId    String?
+  type      NotificationType
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member    Member?          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model Announcement {
+  id        String               @id @default(cuid())
+  tenantId  String
+  title     String
+  body      String
+  audience  AnnouncementAudience @default(ALL_MEMBERS)
+  targetId  String? // planId or trainerId depending on audience
+  createdById String?
+  createdAt DateTime             @default(now())
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model Reminder {
+  id          String          @id @default(cuid())
+  tenantId    String
+  memberId    String
+  channel     ReminderChannel
+  template    String
+  scheduledAt DateTime
+  sentAt      DateTime?
+  status      ReminderStatus  @default(SCHEDULED)
+  error       String?
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member      Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, scheduledAt])
+}
+
+model Referral {
+  id          String   @id @default(cuid())
+  tenantId    String
+  referrerId  String
+  referredPhone String
+  converted   Boolean  @default(false)
+  reward      String?
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  referrer    Member   @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Setting {
+  id       String @id @default(cuid())
+  tenantId String
+  key      String
+  value    Json
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+}
+
+// ───────────── SaaS subscription (gym -> GymTrackey) ─────────────
+model Subscription {
+  id            String             @id @default(cuid())
+  tenantId      String
+  planId        String
+  status        SubscriptionStatus @default(TRIAL)
+  startedAt     DateTime           @default(now())
+  renewsAt      DateTime?
+  amount        Int                @default(0)
+  razorpaySubscriptionId String?   @unique
+  razorpayPaymentId      String?   @unique
+  createdAt     DateTime           @default(now())
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan          SubscriptionPlan   @relation(fields: [planId], references: [id])
+
+  @@index([tenantId, status])
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  couponId  String
+  tenantId  String
+  redeemedAt DateTime @default(now())
+  coupon    Coupon   @relation(fields: [couponId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, tenantId])
+}
+
+model SupportTicket {
+  id        String         @id @default(cuid())
+  tenantId  String
+  subject   String
+  status    TicketStatus   @default(OPEN)
+  priority  TicketPriority @default(NORMAL)
+  assignedTo String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages  SupportMessage[]
+
+  @@index([tenantId, status])
+}
+
+model SupportMessage {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String
+  body       String
+  attachment String?
+  createdAt  DateTime @default(now())
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author     User     @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  userId     String?
+  action     String
+  entity     String?
+  entityId   String?
+  ip         String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+}
