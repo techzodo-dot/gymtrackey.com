@@ -10,6 +10,7 @@ Node ≥ 20, PostgreSQL ≥ 14 (managed: Neon / Supabase / RDS / Railway), a hos
 | `AUTH_SECRET` | yes | ≥32 random chars: `openssl rand -base64 32`. Rotating it signs everyone out. |
 | `NEXT_PUBLIC_APP_URL` | yes | Public https URL (used in emails/SEO). **Build-time** value. |
 | `CRON_SECRET` | yes (prod) | Protects `/api/cron/daily`. |
+| `SETUP_TOKEN` | optional | Enables the one-time `/setup` page to create the first Super Admin in the browser (no CLI). Disabled when unset; refuses once an admin exists. Remove it afterwards. |
 | `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` | seed only | Read by `npm run db:seed`; never stored in code. |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | for billing | Without them, checkout reports "not configured" — it never fakes success. |
 | `EMAIL_SERVER`, `EMAIL_FROM` | for email | SMTP URL, e.g. `smtps://user:pass@smtp.host:465`. Needed for password-reset & reminder emails. |
