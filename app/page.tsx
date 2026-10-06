@@ -26,8 +26,10 @@ const workouts = [
 const trainers = [["Arjun Rao", "Strength & Conditioning", "42 members"], ["Meera Nair", "Yoga & Mobility", "31 members"], ["Kabir Shah", "Fat Loss Coach", "38 members"]];
 
 export default function Home() {
+  const ld = { "@context": "https://schema.org", "@graph": [{ "@type": "Organization", name: "GymTrackey", url: "https://www.gymtrackey.com" }, { "@type": "SoftwareApplication", name: "GymTrackey", applicationCategory: "BusinessApplication", operatingSystem: "Web", description: "Gym management software: members, memberships, fees, attendance, trainers, reports.", offers: { "@type": "Offer", price: "499", priceCurrency: "INR" } }] };
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
       <MarketingNav />
       <main>
         <section className="relative overflow-hidden">
@@ -39,7 +41,7 @@ export default function Home() {
             <p className="gt-rise mx-auto mt-5 max-w-2xl text-muted">Everything your gym needs to manage members, memberships, payments, attendance and daily operations — in one simple platform.</p>
             <div className="gt-rise mt-8 flex flex-wrap justify-center gap-3">
               <ButtonLink href="/register" className="px-7 py-3 text-base">Start Free Trial</ButtonLink>
-              <ButtonLink href="/demo" variant="secondary" className="px-7 py-3 text-base">Book a Demo</ButtonLink>
+              <ButtonLink href="/api/demo/enter" variant="secondary" className="px-7 py-3 text-base">Explore Demo</ButtonLink><ButtonLink href="/demo" variant="ghost" className="px-5 py-3 text-base">Book a Demo</ButtonLink>
             </div>
             <p className="mt-3 text-xs text-muted">14-day free trial · No credit card required</p>
 

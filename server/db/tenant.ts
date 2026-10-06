@@ -66,3 +66,6 @@ export function tenantDb(tenantId: string) {
 }
 
 export type TenantDb = ReturnType<typeof tenantDb>;
+
+/** Interactive-transaction client derived from a tenant-locked client (still tenant-scoped). */
+export type TenantTx = Parameters<Parameters<TenantDb["$transaction"]>[0]>[0];

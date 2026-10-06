@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarCheck, CreditCard, Dumbbell, GitBranch, Home, LifeBuoy, Settings, Users, Wallet, Bell, Layers, UserCog, Salad, Receipt, Camera, MoreHorizontal } from "lucide-react";
+import { BarChart3, CalendarCheck, CreditCard, Dumbbell, GitBranch, Home, LifeBuoy, Settings, Users, Wallet, Bell, Layers, UserCog, Salad, Receipt, Camera, MoreHorizontal, Search } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { Permission } from "@/server/auth/permissions";
@@ -25,8 +25,8 @@ export const NAV: Item[] = [
   { href: "/dashboard/support", label: "Support", icon: LifeBuoy, perm: "support" },
 ];
 
-export function DashboardShell({ items, gymName, userName, banner, children }: {
-  items: Item[]; gymName: string; userName: string; banner?: React.ReactNode; children: React.ReactNode;
+export function DashboardShell({ items, gymName, userName, banner, badges = {}, children }: {
+  items: Item[]; gymName: string; userName: string; banner?: React.ReactNode; badges?: Record<string, { n: number; tone: string }>; children: React.ReactNode;
 }) {
   const mobile = items.filter((i) => ["Dashboard", "Members", "Attendance", "Payments"].includes(i.label));
   return (
@@ -38,6 +38,7 @@ export function DashboardShell({ items, gymName, userName, banner, children }: {
             {items.map((i) => (
               <Link key={i.href} href={i.href} className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted hover:bg-surface2 hover:text-fg">
                 <i.icon size={18} aria-hidden />{i.label}
+                {badges[i.href]?.n ? <span className={`ml-auto rounded-full px-1.5 text-[10px] font-bold text-white ${badges[i.href]!.tone}`}>{badges[i.href]!.n}</span> : null}
               </Link>
             ))}
           </nav>
@@ -45,9 +46,11 @@ export function DashboardShell({ items, gymName, userName, banner, children }: {
       </aside>
       <div className="min-w-0 pb-20 lg:pb-0">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-bg/80 px-4 backdrop-blur">
-          <div className="lg:hidden"><Logo href="/dashboard" /></div>
-          <p className="hidden text-sm font-semibold lg:block">{gymName}</p>
-          <div className="flex items-center gap-2">
+          <div className="shrink-0 lg:hidden"><Logo href="/dashboard" /></div>
+          <p className="hidden shrink-0 text-sm font-semibold lg:block">{gymName}</p>
+          <Link href="/dashboard/search" aria-label="Search" className="rounded-lg p-2 text-muted hover:bg-surface2 lg:hidden"><Search size={18} /></Link>
+          <form action="/dashboard/search" role="search" className="hidden min-w-0 max-w-md flex-1 lg:block"><input name="q" aria-label="Global search" placeholder="Search members, invoices…" className="w-full rounded-xl border border-line bg-surface px-3.5 py-2 text-sm outline-none focus:border-brand2" /></form>
+          <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
             <span className="hidden text-sm text-muted sm:block">{userName}</span>
             <form action="/api/auth/logout" method="post"><LogoutButton /></form>
@@ -60,7 +63,7 @@ export function DashboardShell({ items, gymName, userName, banner, children }: {
         {mobile.map((i) => (
           <Link key={i.href} href={i.href} className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted"><i.icon size={20} aria-hidden />{i.label}</Link>
         ))}
-        <Link href="/dashboard/settings" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted"><MoreHorizontal size={20} aria-hidden />More</Link>
+        <Link href="/dashboard/more" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted"><MoreHorizontal size={20} aria-hidden />More</Link>
       </nav>
     </div>
   );

@@ -34,3 +34,11 @@ export function handleError(err: unknown) {
   logger.error("api.unhandled", { err: err instanceof Error ? err.message : String(err) });
   return fail("Something went wrong. Please try again.", 500);
 }
+
+/** Public origin of this request (works behind proxies). Never use a build-time env for redirects. */
+export function publicOrigin(req: Request) {
+  const u = new URL(req.url);
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? u.host;
+  const proto = req.headers.get("x-forwarded-proto") ?? u.protocol.replace(":", "");
+  return `${proto}://${host}`;
+}

@@ -3,7 +3,7 @@ import { Logo } from "@/components/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-const links = [["Features", "/features"], ["Pricing", "/pricing"], ["Demo", "/demo"], ["About", "/about"], ["Contact", "/contact"]] as const;
+const links = [["Features", "/features"], ["Pricing", "/pricing"], ["Demo", "/demo"], ["Blog", "/blog"], ["About", "/about"], ["Contact", "/contact"]] as const;
 
 export function MarketingNav() {
   return (

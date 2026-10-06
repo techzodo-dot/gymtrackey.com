@@ -19,7 +19,8 @@ export default function Login() {
             <AuthForm endpoint="/api/auth/login" submit="Log in" remember
               fields={[{ name: "email", label: "Email", type: "email", autoComplete: "email" }, { name: "password", label: "Password", type: "password", autoComplete: "current-password" }]} />
           </Suspense>
-          <p className="mt-5 text-center text-sm text-muted">New to GymTrackey? <Link href="/register" className="font-semibold text-brand">Start your free trial</Link></p>
+          <p className="mt-4 text-center text-sm"><Link href="/forgot-password" className="text-muted underline hover:text-fg">Forgot password?</Link></p>
+          <p className="mt-3 text-center text-sm text-muted">New to GymTrackey? <Link href="/register" className="font-semibold text-brand">Start your free trial</Link></p>
         </Card>
       </div>
     </main>

@@ -25,6 +25,10 @@ export async function POST(req: Request) {
       return fail("Incorrect email or password.", 401);
     }
 
+    if (user.tenantId) {
+      const t = await prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { status: true, deletedAt: true } });
+      if (!t || t.deletedAt || t.status === "SUSPENDED") return fail("This gym account is suspended. Please contact GymTrackey support.", 403);
+    }
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     const ttl = input.remember ? REMEMBER_TTL : 60 * 60 * 24 * 7;
     const token = await signSession({ uid: user.id, role: user.role, tid: user.tenantId }, ttl);

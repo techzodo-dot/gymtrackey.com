@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { RegisterSW } from "@/components/pwa";
 
 const url = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.gymtrackey.com";
 
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
   keywords: ["gym management software", "gym management system", "gym software India", "gym membership management software", "gym fee management software", "gym attendance software", "gym CRM", "gym billing software"],
   openGraph: { title: "GymTrackey — Track Members. Manage Fees. Grow Your Gym.", description: "Gym management software built for gym owners.", url, siteName: "GymTrackey", type: "website" },
   twitter: { card: "summary_large_image" },
+  appleWebApp: { capable: true, title: "GymTrackey", statusBarStyle: "black-translucent" },
 };
 export const viewport: Viewport = { themeColor: "#07090c", width: "device-width", initialScale: 1 };
 
@@ -21,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
-      <body>{children}</body>
+      <body>{children}<RegisterSW /></body>
     </html>
   );
 }

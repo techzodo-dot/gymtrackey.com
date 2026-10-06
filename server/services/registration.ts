@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/prisma";
 import { hashPassword } from "@/server/auth/password";
 import type { RegisterInput } from "@/lib/validation";
 import { DEFAULT_TRIAL_DAYS, ensurePlans } from "./plans";
+import { getPlatformSettings } from "./platform";
 
 export class EmailTakenError extends Error {
   constructor() { super("An account with this email already exists."); }
@@ -22,7 +23,8 @@ export async function registerGym(input: RegisterInput, opts: { trialDays?: numb
   await ensurePlans();
   const plan = await prisma.subscriptionPlan.findUniqueOrThrow({ where: { code: "starter" } });
   const passwordHash = await hashPassword(input.password);
-  const trialEndsAt = new Date(Date.now() + (opts.trialDays ?? DEFAULT_TRIAL_DAYS) * 86_400_000);
+  const trialDays = opts.trialDays ?? (await getPlatformSettings()).trialDays ?? DEFAULT_TRIAL_DAYS;
+  const trialEndsAt = new Date(Date.now() + trialDays * 86_400_000);
 
   return prisma.$transaction(async (tx) => {
     const tenant = await tx.tenant.create({

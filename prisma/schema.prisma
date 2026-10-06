@@ -31,6 +31,7 @@ enum TenantStatus {
 }
 
 enum SubscriptionStatus {
+  PENDING
   TRIAL
   ACTIVE
   PAST_DUE
@@ -287,6 +288,7 @@ model Tenant {
   status         TenantStatus @default(TRIAL)
   trialEndsAt    DateTime?
   planCode       String       @default("starter")
+  isDemo         Boolean      @default(false) // public demo tenant: read-only for visitors
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
@@ -876,6 +878,10 @@ model Subscription {
   amount        Int                @default(0)
   razorpaySubscriptionId String?   @unique
   razorpayPaymentId      String?   @unique
+  razorpayOrderId        String?   @unique
+  couponCode    String?
+  discount      Int                @default(0)
+  failureReason String?
   createdAt     DateTime           @default(now())
   tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plan          SubscriptionPlan   @relation(fields: [planId], references: [id])

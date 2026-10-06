@@ -4,9 +4,11 @@ Multi-tenant gym management SaaS — *Track Members. Manage Fees. Grow Your Gym.
 
 Stack: Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS 4 · PostgreSQL · Prisma 6 · Zod · jose (JWT sessions) · bcrypt · Vitest.
 
-## Status
+## What's in the box
 
-**Phase 1 (foundation) is complete, plus the Phase 8 marketing slice and the Phase 2 dashboard shell.** See [docs/ROADMAP.md](docs/ROADMAP.md) for what is built vs. pending. This is not yet the full 107-section spec — it is the secure foundation the rest is built on.
+A working multi-tenant gym SaaS: marketing site, signup → trial, gym dashboard (members, memberships, payments + invoices + receipts, dues, attendance + QR, trainers, workout & diet plans, measurements, expenses, reports/analytics, reminders, announcements, staff & permissions, branches, settings, billing with Razorpay, support tickets, global search, CSV import/export), member portal, Super Admin (gyms, plans/limits/feature flags, coupons, leads, tickets, blog, platform settings), read-only public demo, PWA shell. See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what is and isn't done.
+
+**Try it in 2 minutes:** `npm i && npm run db:migrate && npm run dev`, open `/demo` → *Explore Demo*, or register a trial gym and click *Load sample data*.
 
 ## Setup
 
@@ -14,7 +16,7 @@ Stack: Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CS
 cp .env.example .env          # fill DATABASE_URL and AUTH_SECRET (openssl rand -base64 32)
 npm install
 npx prisma migrate dev        # applies prisma/migrations
-SUPER_ADMIN_EMAIL=you@x.com SUPER_ADMIN_PASSWORD='…' SEED_DEMO=true npm run db:seed
+SUPER_ADMIN_EMAIL=you@x.com SUPER_ADMIN_PASSWORD='…' npm run db:seed
 npm run dev
 ```
 
@@ -60,3 +62,6 @@ See `.env.example`. Required now: `DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_AP
 ## Deployment
 
 Vercel or any Node host plus managed PostgreSQL. Build with `npm run build`; release with `npx prisma migrate deploy`. Enable daily backups and point-in-time recovery on the database.
+
+## More docs
+[API](docs/API.md) · [Deployment](docs/DEPLOYMENT.md) · [Billing & Razorpay](docs/BILLING.md) · [Super Admin](docs/ADMIN.md) · [Testing](docs/TESTING.md) · [Backups](docs/BACKUPS.md) · [Roadmap/status](docs/ROADMAP.md)

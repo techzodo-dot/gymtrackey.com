@@ -36,7 +36,7 @@ export async function getAuth(): Promise<AuthContext | null> {
   if (!tenant || tenant.deletedAt || tenant.status === "SUSPENDED") return null;
 
   const trialOver = tenant.status === "TRIAL" && !!tenant.trialEndsAt && tenant.trialEndsAt < new Date();
-  const readOnly = tenant.status === "EXPIRED" || tenant.status === "CANCELLED" || trialOver;
+  const readOnly = tenant.isDemo || tenant.status === "EXPIRED" || tenant.status === "CANCELLED" || trialOver;
   return { user, tenant, db: tenantDb(user.tenantId), readOnly };
 }
 
@@ -63,6 +63,7 @@ export async function requirePermission(
     throw new AuthError(403, "You don't have permission for this action.");
   }
   if (opts.write && ctx.readOnly) {
+    if (ctx.tenant.isDemo) throw new AuthError(403, "This is a read-only demo. Start a free trial to make changes with your own gym.", "DEMO_READ_ONLY");
     throw new AuthError(403, "Your GymTrackey subscription has expired. Renew to make changes.", "SUBSCRIPTION_EXPIRED");
   }
   return ctx as AuthContext & { db: TenantDb; tenant: Tenant };
